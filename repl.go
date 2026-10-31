@@ -5,10 +5,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/AHallqvist/bdpokedex/internal/pokeapi"
 )
 
 type config struct {
-	commands map[string]cliCommand
+	commands            map[string]cliCommand
+	pokeapiClient       pokeapi.Client
+	Next                *string
+	Previous            *string
+	locationAreasLoaded bool
 }
 
 type cliCommand struct {
@@ -28,6 +34,16 @@ func startRepl(cfg *config) {
 			name:        "exit",
 			description: "Exit the Pokedex",
 			callback:    commandExit,
+		},
+		"map": {
+			name:        "map",
+			description: "Display the next 20 location areas",
+			callback:    commandMap,
+		},
+		"mapb": {
+			name:        "mapb",
+			description: "Display the previous 20 location areas",
+			callback:    commandMapb,
 		},
 	}
 	scanner := bufio.NewScanner(os.Stdin)

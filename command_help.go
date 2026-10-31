@@ -1,8 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 func commandHelp(cfg *config) error {
-	fmt.Println("Welcome to the Pokedex!\nUsage:\n\nhelp: Displays a help message\nexit: Exit the Pokedex")
+	fmt.Print("Welcome to the Pokedex!\nUsage:\n\n")
+	names := make([]string, 0, len(cfg.commands))
+	for name := range cfg.commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		command := cfg.commands[name]
+		fmt.Printf("%s: %s\n", command.name, command.description)
+	}
 	return nil
 }
