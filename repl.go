@@ -7,14 +7,18 @@ import (
 	"strings"
 )
 
+type config struct {
+	commands map[string]cliCommand
+}
+
 type cliCommand struct {
 	name        string
 	description string
-	callback    func() error
+	callback    func(*config) error
 }
 
-func startRepl() {
-	commands := map[string]cliCommand{
+func startRepl(cfg *config) {
+	cfg.commands = map[string]cliCommand{
 		"help": {
 			name:        "help",
 			description: "Displays a help message",
@@ -36,12 +40,12 @@ func startRepl() {
 		if len(words) == 0 {
 			continue
 		}
-		command, ok := commands[words[0]]
+		command, ok := cfg.commands[words[0]]
 		if !ok {
 			fmt.Println("Unknown command")
 			continue
 		}
-		if err := command.callback(); err != nil {
+		if err := command.callback(cfg); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	}
