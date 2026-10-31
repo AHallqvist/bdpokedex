@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,10 +16,10 @@ import (
 )
 
 func TestMapPagination(t *testing.T) {
-	requests := 0
+	var requests atomic.Int64
 	var baseURL string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		requests++
+		requests.Add(1)
 		offset, err := strconv.Atoi(request.URL.Query().Get("offset"))
 		if err != nil {
 			t.Errorf("invalid offset: %v", err)
@@ -61,14 +62,14 @@ func TestMapPagination(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			before := requests
+			before := requests.Load()
 			output, err := captureCommandOutput(t, func() error { return testCase.callback(cfg) })
 			if err != nil {
 				t.Fatal(err)
 			}
 			if testCase.boundary != "" {
-				if output != testCase.boundary || requests != before {
-					t.Fatalf("boundary output = %q, requests = %d; want %q and %d", output, requests, testCase.boundary, before)
+				if output != testCase.boundary || requests.Load() != before {
+					t.Fatalf("boundary output = %q, requests = %d; want %q and %d", output, requests.Load(), testCase.boundary, before)
 				}
 				return
 			}
@@ -83,6 +84,9 @@ func TestMapPagination(t *testing.T) {
 				t.Errorf("unexpected pagination state for offset %d", testCase.offset)
 			}
 		})
+	}
+	if count := requests.Load(); count != 3 {
+		t.Errorf("made %d requests, want 3; revisited pages should be cached", count)
 	}
 }
 

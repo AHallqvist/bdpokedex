@@ -5,18 +5,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func TestListLocationAreas(t *testing.T) {
+	var requests atomic.Int64
 	var baseURL string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
 		if request.URL.Path != "/location-area/" || request.URL.Query().Get("limit") != "20" {
 			t.Errorf("unexpected request: %s", request.URL)
 		}
-		firstURL := baseURL + "/location-area/?limit=20"
-		nextURL := firstURL + "&offset=20"
+		firstURL := baseURL + "/location-area/?offset=0&limit=20"
+		nextURL := baseURL + "/location-area/?offset=20&limit=20"
 		page := LocationAreasResponse{Count: 40}
 		offset := 0
 		if request.URL.Query().Get("offset") == "20" {
@@ -58,6 +61,9 @@ func TestListLocationAreas(t *testing.T) {
 	if len(previous.Results) != 20 || previous.Results[0].Name != "area-0" || previous.Previous != nil {
 		t.Fatalf("unexpected previous page: %+v", previous)
 	}
+	if count := requests.Load(); count != 2 {
+		t.Errorf("made %d requests, want 2; previous page should be cached", count)
+	}
 }
 
 func TestListLocationAreasErrors(t *testing.T) {
@@ -71,7 +77,9 @@ func TestListLocationAreasErrors(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
+			var requests atomic.Int64
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				requests.Add(1)
 				writer.WriteHeader(testCase.status)
 				if _, err := writer.Write([]byte(testCase.body)); err != nil {
 					t.Errorf("write response: %v", err)
@@ -80,8 +88,13 @@ func TestListLocationAreasErrors(t *testing.T) {
 			defer server.Close()
 			client := NewClient(time.Second)
 			client.baseURL = server.URL
-			if _, err := client.ListLocationAreas(nil); err == nil {
-				t.Fatal("expected an error")
+			for attempt := 0; attempt < 2; attempt++ {
+				if _, err := client.ListLocationAreas(nil); err == nil {
+					t.Fatal("expected an error")
+				}
+			}
+			if count := requests.Load(); count != 2 {
+				t.Errorf("made %d requests, want 2; failed responses must not be cached", count)
 			}
 		})
 	}
