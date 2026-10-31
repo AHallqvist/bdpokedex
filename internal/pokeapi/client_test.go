@@ -99,3 +99,68 @@ func TestListLocationAreasErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestGetLocationAreaCached(t *testing.T) {
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		if request.URL.Path != "/location-area/canalave-city-area/" {
+			t.Errorf("unexpected request: %s", request.URL)
+		}
+		if _, err := writer.Write([]byte(`{"name":"canalave-city-area","pokemon_encounters":[{"pokemon":{"name":"tentacool"}},{"pokemon":{"name":"magikarp"}}]}`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(time.Second)
+	client.baseURL = server.URL
+	for attempt := 0; attempt < 2; attempt++ {
+		area, err := client.GetLocationArea("canalave-city-area")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if area.Name != "canalave-city-area" || len(area.PokemonEncounters) != 2 {
+			t.Fatalf("unexpected area: %+v", area)
+		}
+		if area.PokemonEncounters[0].Pokemon.Name != "tentacool" || area.PokemonEncounters[1].Pokemon.Name != "magikarp" {
+			t.Errorf("unexpected encounters: %+v", area.PokemonEncounters)
+		}
+	}
+	if count := requests.Load(); count != 1 {
+		t.Errorf("made %d requests, want 1; explored areas should be cached", count)
+	}
+}
+
+func TestGetLocationAreaErrors(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "unknown area", status: http.StatusNotFound, body: "Not Found"},
+		{name: "invalid JSON", status: http.StatusOK, body: "not JSON"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var requests atomic.Int64
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				requests.Add(1)
+				writer.WriteHeader(testCase.status)
+				if _, err := writer.Write([]byte(testCase.body)); err != nil {
+					t.Errorf("write response: %v", err)
+				}
+			}))
+			defer server.Close()
+			client := NewClient(time.Second)
+			client.baseURL = server.URL
+			for attempt := 0; attempt < 2; attempt++ {
+				if _, err := client.GetLocationArea("unknown-area"); err == nil {
+					t.Fatal("expected an error")
+				}
+			}
+			if count := requests.Load(); count != 2 {
+				t.Errorf("made %d requests, want 2; failed responses must not be cached", count)
+			}
+		})
+	}
+}

@@ -50,3 +50,21 @@ func TestCleanInput(t *testing.T) {
 		}
 	}
 }
+
+func TestCommandExploreArguments(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "missing area"},
+		{name: "blank area", args: []string{" "}},
+		{name: "extra arguments", args: []string{"canalave-city-area", "extra"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if err := commandExplore(&config{}, testCase.args...); err == nil {
+				t.Fatal("expected an argument error before making a request")
+			}
+		})
+	}
+}

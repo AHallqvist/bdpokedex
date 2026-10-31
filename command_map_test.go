@@ -46,7 +46,7 @@ func TestMapPagination(t *testing.T) {
 	cfg := &config{pokeapiClient: pokeapi.NewClient(time.Second), Next: &firstURL}
 	cases := []struct {
 		name     string
-		callback func(*config) error
+		callback func(*config, ...string) error
 		offset   int
 		boundary string
 	}{
@@ -102,7 +102,7 @@ func TestMapFailurePreservesPagination(t *testing.T) {
 		Previous:            &url,
 		locationAreasLoaded: true,
 	}
-	for _, callback := range []func(*config) error{commandMap, commandMapb} {
+	for _, callback := range []func(*config, ...string) error{commandMap, commandMapb} {
 		output, err := captureCommandOutput(t, func() error { return callback(cfg) })
 		if err == nil {
 			t.Fatal("expected an API error")

@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func commandHelp(cfg *config) error {
+func commandHelp(cfg *config, args ...string) error {
 	fmt.Print("Welcome to the Pokedex!\nUsage:\n\n")
 	names := make([]string, 0, len(cfg.commands))
 	for name := range cfg.commands {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/AHallqvist/bdpokedex/internal/pokecache"
@@ -28,6 +29,17 @@ type LocationArea struct {
 	URL  string `json:"url"`
 }
 
+type LocationAreaDetails struct {
+	Name              string             `json:"name"`
+	PokemonEncounters []PokemonEncounter `json:"pokemon_encounters"`
+}
+
+type PokemonEncounter struct {
+	Pokemon struct {
+		Name string `json:"name"`
+	} `json:"pokemon"`
+}
+
 func NewClient(timeout time.Duration) Client {
 	return Client{
 		httpClient: http.Client{Timeout: timeout},
@@ -37,33 +49,48 @@ func NewClient(timeout time.Duration) Client {
 }
 
 func (client Client) ListLocationAreas(pageURL *string) (LocationAreasResponse, error) {
-	url := client.baseURL + "/location-area/?offset=0&limit=20"
+	requestURL := client.baseURL + "/location-area/?offset=0&limit=20"
 	if pageURL != nil {
-		url = *pageURL
+		requestURL = *pageURL
 	}
-	if data, ok := client.cache.Get(url); ok {
-		var page LocationAreasResponse
-		if err := json.Unmarshal(data, &page); err != nil {
-			return LocationAreasResponse{}, fmt.Errorf("decode cached location areas: %w", err)
+	var page LocationAreasResponse
+	if err := client.getJSON(requestURL, &page); err != nil {
+		return LocationAreasResponse{}, err
+	}
+	return page, nil
+}
+
+func (client Client) GetLocationArea(name string) (LocationAreaDetails, error) {
+	requestURL := client.baseURL + "/location-area/" + url.PathEscape(name) + "/"
+	var area LocationAreaDetails
+	if err := client.getJSON(requestURL, &area); err != nil {
+		return LocationAreaDetails{}, err
+	}
+	return area, nil
+}
+
+func (client Client) getJSON(requestURL string, target any) error {
+	if data, ok := client.cache.Get(requestURL); ok {
+		if err := json.Unmarshal(data, target); err != nil {
+			return fmt.Errorf("decode cached PokeAPI response: %w", err)
 		}
-		return page, nil
+		return nil
 	}
-	response, err := client.httpClient.Get(url)
+	response, err := client.httpClient.Get(requestURL)
 	if err != nil {
-		return LocationAreasResponse{}, fmt.Errorf("fetch location areas: %w", err)
+		return fmt.Errorf("fetch PokeAPI response: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return LocationAreasResponse{}, fmt.Errorf("fetch location areas: %s", response.Status)
+		return fmt.Errorf("fetch PokeAPI response: %s", response.Status)
 	}
 	data, err := io.ReadAll(response.Body)
 	if err != nil {
-		return LocationAreasResponse{}, fmt.Errorf("read location areas: %w", err)
+		return fmt.Errorf("read PokeAPI response: %w", err)
 	}
-	var page LocationAreasResponse
-	if err := json.Unmarshal(data, &page); err != nil {
-		return LocationAreasResponse{}, fmt.Errorf("decode location areas: %w", err)
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("decode PokeAPI response: %w", err)
 	}
-	client.cache.Add(url, data)
-	return page, nil
+	client.cache.Add(requestURL, data)
+	return nil
 }

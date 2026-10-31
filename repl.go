@@ -20,11 +20,16 @@ type config struct {
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(*config) error
+	callback    func(*config, ...string) error
 }
 
 func startRepl(cfg *config) {
 	cfg.commands = map[string]cliCommand{
+		"explore": {
+			name:        "explore",
+			description: "Explore a location area: explore <area-name>",
+			callback:    commandExplore,
+		},
 		"help": {
 			name:        "help",
 			description: "Displays a help message",
@@ -61,7 +66,7 @@ func startRepl(cfg *config) {
 			fmt.Println("Unknown command")
 			continue
 		}
-		if err := command.callback(cfg); err != nil {
+		if err := command.callback(cfg, words[1:]...); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	}
