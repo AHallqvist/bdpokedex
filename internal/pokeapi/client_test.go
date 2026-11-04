@@ -10,6 +10,40 @@ import (
 	"time"
 )
 
+func TestGetPokemonCached(t *testing.T) {
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		if request.URL.Path != "/pokemon/pikachu/" {
+			t.Errorf("unexpected request: %s", request.URL)
+		}
+		if _, err := writer.Write([]byte(`{"name":"pikachu","base_experience":112,"height":4,"weight":60,"stats":[{"base_stat":35,"stat":{"name":"hp"}}],"types":[{"type":{"name":"electric"}}]}`)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(time.Second)
+	client.baseURL = server.URL
+	for attempt := 0; attempt < 2; attempt++ {
+		pokemon, err := client.GetPokemon("pikachu")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pokemon.Name != "pikachu" || pokemon.BaseExperience != 112 {
+			t.Fatalf("unexpected Pokemon: %+v", pokemon)
+		}
+		if pokemon.Height != 4 || pokemon.Weight != 60 || len(pokemon.Stats) != 1 || len(pokemon.Types) != 1 {
+			t.Fatalf("missing Pokemon details: %+v", pokemon)
+		}
+		if pokemon.Stats[0].BaseStat != 35 || pokemon.Stats[0].Stat.Name != "hp" || pokemon.Types[0].Type.Name != "electric" {
+			t.Errorf("unexpected stats or types: %+v", pokemon)
+		}
+	}
+	if count := requests.Load(); count != 1 {
+		t.Errorf("made %d requests, want 1; Pokemon details should be cached", count)
+	}
+}
+
 func TestListLocationAreas(t *testing.T) {
 	var requests atomic.Int64
 	var baseURL string

@@ -12,6 +12,7 @@ import (
 type config struct {
 	commands            map[string]cliCommand
 	pokeapiClient       pokeapi.Client
+	pokedex             map[string]pokeapi.Pokemon
 	Next                *string
 	Previous            *string
 	locationAreasLoaded bool
@@ -25,6 +26,11 @@ type cliCommand struct {
 
 func startRepl(cfg *config) {
 	cfg.commands = map[string]cliCommand{
+		"catch": {
+			name:        "catch",
+			description: "Try to catch a Pokemon: catch <pokemon-name>",
+			callback:    commandCatch,
+		},
 		"explore": {
 			name:        "explore",
 			description: "Explore a location area: explore <area-name>",
@@ -34,6 +40,11 @@ func startRepl(cfg *config) {
 			name:        "help",
 			description: "Displays a help message",
 			callback:    commandHelp,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "Inspect a caught Pokemon: inspect <pokemon-name>",
+			callback:    commandInspect,
 		},
 		"exit": {
 			name:        "exit",
