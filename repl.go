@@ -61,6 +61,11 @@ func startRepl(cfg *config) {
 			description: "Display the previous 20 location areas",
 			callback:    commandMapb,
 		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "List all caught Pokemon",
+			callback:    commandPokedex,
+		},
 	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
